@@ -140,3 +140,4 @@ cython_debug/
 
 # Ignore class specific files
 fuzzTest100.py
+/output
