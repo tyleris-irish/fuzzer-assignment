@@ -1,6 +1,7 @@
 import os
 import random
 import subprocess
+import re
 
 def mutate(jpg):
     # Randomly choose a byte to mutate
@@ -14,49 +15,68 @@ def mutate(jpg):
 def run_jpeg2bmp(temp_jpg, output_bmp):
     """
     Runs the target program (jpeg2bmp) using the mutated image file.
-    Returns the stderr output from the program.
+    Returns the combined output (stdout and stderr), the extracted bug number (if any),
+    and the return code.
     """
+    command = f"./jpeg2bmp {temp_jpg} /output/{output_bmp}"
     try:
-        command = f"./jpeg2bmp {temp_jpg} /output/{output_bmp}"
-        ret = os.system(command)
-        ret_code = os.WEXITSTATUS(ret)
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
+        # Combine stdout and stderr
+        output = result.stdout + result.stderr
+        
+        # Use regex to extract the bug number from the output.
+        match = re.search(r'Bug#(\d+)', output)
+        bug_number = match.group(1) if match else None
+        
     except subprocess.TimeoutExpired:
         print("Execution timed out.")
-        return ""
-    return ret, ret_code
+        return "", None, None
+        
+    return output, bug_number, result.returncode
 
 
 def main():
     with open("cross.jpg", 'rb') as file:
         crossjpg = file.read()
-    
-    for a in range(0,100):
+    os.makedirs("output", exist_ok=True)
+    os.makedirs("input", exist_ok=True)
+
+    bugs = {
+        1:0,
+        2:0,
+        3:0,
+        4:0,
+        5:0,
+        6:0,
+        7:0,
+        8:0,
+        9:0,
+        10:0,
+        "total":0
+    }
+
+    for a in range(1,1000):
         for b in range(random.randint(0,500)):
             new_jpg = mutate(crossjpg)
-        with open("temp.jpg", 'wb') as file:
+        with open(f"./input/temp{a}.jpg", 'wb') as file:
             file.write(new_jpg)
-        stderr = run_jpeg2bmp(crossjpg, f"output{a}.bmp")
-        if "Error" in stderr:
+        output, bug_number, return_code = run_jpeg2bmp(f"./input/temp{a}.jpg", f"output{a}.bmp")
+        
+        if bug_number:
+            bugs[int(bug_number)] += 1
+            bugs["total"] += 1
+            print(f"Found bug #{bug_number} with input: temp{a}.jpg")
+            with open(f"./output/bug{bug_number}.jpg", 'wb') as file:
+                file.write(new_jpg)
+
+        if "Error" in output:
             print("Crashed with input: {}".format(new_jpg))
             break
     
-    
-    
-    
-    # for i in range(fuzz_num):
-    #     # Compose values for firstInt, charArray, secondInt
-    #     first_int = random.randint(0, 49999)
-    #     second_int = random.randint(0, 1)
-    #     array_size = random.randint(0, 19)
-        
-    #     char_array = 'A' * array_size
-        
-    #     command = "./jpeg2bmp {} \"{}\" {}\n".format(first_int, char_array, second_int)
-        
-    #     ret = os.system(command)
-    #     ret_code = os.WEXITSTATUS(ret)
-        
-    #     print("retCode={}  ## Input:  firstInt = {},  arraySize = {}, secondInt = {}".format(ret_code, first_int, array_size, second_int))
+    print("Bugs found:")
+    for bug, count in bugs.items():
+        if count > 0:
+            print(f"Bug #{bug}: {count} occurrences")
 
 if __name__ == "__main__":
     main()
