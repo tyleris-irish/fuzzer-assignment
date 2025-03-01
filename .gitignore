@@ -142,3 +142,4 @@ cython_debug/
 fuzzTest100.py
 /output
 /input
+/bugged_input
